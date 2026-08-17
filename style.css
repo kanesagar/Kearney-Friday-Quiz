@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Sora:wght@400;500;600;700;800&display=swap');
+
+:root{
+  --bg:#0f1115;
+  --panel:#171b22;
+  --panel-2:#1e2330;
+  --line:#2a3040;
+  --gold:#e8b23d;
+  --teal:#2fa398;
+  --red:#e15252;
+  --cream:#f3efe6;
+  --muted:#8b93a1;
+}
+
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  background-image:
+    radial-gradient(circle at 20% 0%, rgba(232,178,61,0.07), transparent 45%),
+    radial-gradient(circle at 100% 100%, rgba(47,163,152,0.08), transparent 45%);
+  color:var(--cream);
+  font-family:'Sora', system-ui, sans-serif;
+  min-height:100vh;
+}
+
+.topbar{
+  display:flex; align-items:baseline; justify-content:space-between;
+  padding:20px 28px 10px; border-bottom:1px solid var(--line); flex-wrap:wrap; gap:8px;
+}
+.topbar h1{
+  font-family:'Bebas Neue', 'Sora', sans-serif; letter-spacing:2px; font-size:30px; margin:0; color:var(--gold);
+}
+.tag{ color:var(--muted); font-size:13px; letter-spacing:.5px; }
+
+.card{
+  background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px 22px;
+}
+.eyebrow{
+  font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--gold); margin-bottom:10px; font-weight:700;
+}
+
+button{ font-family:'Sora', sans-serif; cursor:pointer; }
+.btn{
+  border:none; border-radius:9px; padding:11px 20px; font-weight:700; font-size:14px; letter-spacing:.3px;
+  transition:transform .12s ease, filter .12s ease;
+}
+.btn:active{ transform:scale(0.96); }
+.btn:hover{ filter:brightness(1.1); }
+.btn-start{ background:var(--teal); color:#06231f; }
+.btn-pause{ background:var(--gold); color:#241b04; }
+.btn-reset{ background:var(--panel-2); color:var(--cream); border:1px solid var(--line); }
+.btn-ghost{ background:transparent; color:var(--muted); border:1px solid var(--line); }
+.btn-ghost:hover{ color:var(--cream); border-color:var(--muted); }
+.btn-sm{ padding:7px 12px; font-size:12.5px; border-radius:7px; }
+.btn:disabled{ opacity:.35; cursor:not-allowed; filter:none; transform:none; }
+
+input[type=text], input[type=password]{
+  background:var(--panel-2); border:1px solid var(--line); border-radius:8px; color:var(--cream);
+  padding:11px 12px; font-family:'Sora', sans-serif; font-size:15px; outline:none;
+}
+input[type=text]:focus, input[type=password]:focus{ border-color:var(--gold); }
+
+/* timer ring, shared by host + player */
+.timer-zone{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+  background:var(--panel); border:1px solid var(--line); border-radius:18px;
+  padding:22px; position:relative; overflow:hidden; transition:box-shadow .3s ease;
+}
+.timer-zone.flash{ box-shadow:inset 0 0 0 3px var(--red), 0 0 40px rgba(225,82,82,0.4); }
+.ring-wrap{ position:relative; width:min(200px, 50vw); }
+.ring-wrap svg{ width:100%; height:auto; display:block; transform:rotate(-90deg); }
+.ring-bg{ fill:none; stroke:var(--line); stroke-width:14; }
+.ring-fg{ fill:none; stroke:var(--teal); stroke-width:14; stroke-linecap:round; transition:stroke .3s ease; }
+.ring-center{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+.ring-time{ font-family:'Bebas Neue', sans-serif; font-size:50px; letter-spacing:2px; line-height:1; }
+.ring-label{ font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-top:4px; }
+
+/* leaderboard, shared by host + player */
+.team-list{ display:flex; flex-direction:column; gap:10px; }
+.empty-note{ color:var(--muted); font-size:13px; padding:8px 2px; }
+.team-card{
+  background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:11px 12px;
+  display:flex; align-items:center; gap:10px; transition:border-color .2s ease, background .2s ease;
+}
+.team-card.leader{ border-color:var(--gold); background:linear-gradient(90deg, rgba(232,178,61,0.14), rgba(232,178,61,0.03)); }
+.team-card.me{ border-color:var(--teal); }
+.rank{ font-family:'Bebas Neue', sans-serif; font-size:20px; color:var(--muted); width:22px; text-align:center; flex-shrink:0; }
+.team-card.leader .rank{ color:var(--gold); }
+.team-main{ flex:1; min-width:0; font-weight:700; font-size:14px; }
+.team-score{ font-family:'Bebas Neue', sans-serif; font-size:22px; color:var(--gold); }
+
+.opt-badge{
+  width:26px; height:26px; border-radius:50%; flex-shrink:0;
+  background:var(--panel); border:1px solid var(--line);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Bebas Neue', sans-serif; font-size:14px; color:var(--gold);
+}
+
+.toast{
+  position:fixed; top:16px; right:16px; padding:10px 16px; border-radius:9px;
+  font-size:13px; font-weight:700; opacity:0; transform:translateY(-6px);
+  transition:opacity .25s ease, transform .25s ease; pointer-events:none; z-index:20;
+}
+.toast.show{ opacity:1; transform:translateY(0); }
+.toast.correct{ background:rgba(47,163,152,0.2); border:1px solid var(--teal); color:var(--teal); }
+.toast.wrong{ background:rgba(225,82,82,0.18); border:1px solid var(--red); color:var(--red); }
+.toast.info{ background:rgba(232,178,61,0.18); border:1px solid var(--gold); color:var(--gold); }

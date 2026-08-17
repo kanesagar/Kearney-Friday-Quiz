@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Friday Quiz</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .wrap{ max-width:480px; margin:0 auto; padding:22px 18px 60px; display:flex; flex-direction:column; gap:18px; }
+
+  #joinScreen{ display:flex; flex-direction:column; gap:14px; align-items:center; text-align:center; padding-top:14vh; }
+  #joinScreen h1{ font-family:'Bebas Neue', sans-serif; color:var(--gold); letter-spacing:2px; font-size:36px; margin:0 0 4px; }
+  #joinScreen p{ color:var(--muted); font-size:14px; margin:0 0 10px; }
+  #joinScreen input{ width:220px; text-align:center; font-size:18px; letter-spacing:2px; }
+  #joinError{ color:var(--red); font-size:13px; min-height:16px; }
+
+  #gameScreen{ display:none; flex-direction:column; gap:18px; }
+
+  .my-status{ display:flex; align-items:center; justify-content:space-between; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; }
+  .my-status .name{ font-weight:700; }
+  .my-status .score{ font-family:'Bebas Neue', sans-serif; font-size:26px; color:var(--gold); }
+
+  .lobby-msg{ text-align:center; color:var(--muted); padding:40px 10px; font-size:15px; }
+
+  #questionText{ font-size:19px; font-weight:700; line-height:1.5; margin:0 0 16px; }
+  .options-stack{ display:flex; flex-direction:column; gap:10px; }
+  .opt-btn{
+    display:flex; align-items:center; gap:12px; background:var(--panel-2); border:1.5px solid var(--line);
+    border-radius:11px; padding:14px 14px; font-size:15px; font-weight:600; color:var(--cream); text-align:left;
+    transition:border-color .15s, background .15s;
+  }
+  .opt-btn:hover:not(:disabled){ border-color:var(--gold); }
+  .opt-btn.selected{ border-color:var(--gold); background:rgba(232,178,61,0.12); }
+  .opt-btn.correct{ border-color:var(--teal); background:rgba(47,163,152,0.18); }
+  .opt-btn.wrong{ border-color:var(--red); background:rgba(225,82,82,0.15); }
+  .opt-btn:disabled{ cursor:default; }
+
+  #submitAnswerBtn{ width:100%; margin-top:4px; }
+  .lock-msg{ text-align:center; color:var(--muted); font-size:14px; padding:8px 0; }
+
+  #leaderboardWrap{ display:flex; flex-direction:column; gap:10px; }
+  #leaderboardWrap h2{ font-family:'Bebas Neue', sans-serif; letter-spacing:2px; font-size:20px; margin:0; color:var(--cream); }
+  #leaderboardWrap h2 span{ color:var(--gold); }
+
+  /* sticky header with compact timer pinned top-right */
+  .topbar{ position:sticky; top:0; z-index:20; background:var(--bg); }
+  .topbar-right{ display:flex; align-items:center; gap:14px; }
+
+  .timer-badge{ display:flex; align-items:center; gap:8px; }
+  .timer-badge .ring-wrap{ width:52px; flex-shrink:0; }
+  .timer-badge .ring-time{ font-size:15px; letter-spacing:0.5px; }
+  .timer-badge .ring-label{ display:none; }
+  .timer-badge.flash .ring-wrap{ filter:drop-shadow(0 0 6px var(--red)); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>FRIDAY QUIZ</h1>
+  <div class="topbar-right">
+    <div class="tag" id="statusText">connecting…</div>
+    <div class="timer-badge" id="timerZone">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 220 220">
+          <circle class="ring-bg" cx="110" cy="110" r="95"></circle>
+          <circle class="ring-fg" id="ringFg" cx="110" cy="110" r="95"></circle>
+        </svg>
+        <div class="ring-center">
+          <div class="ring-time" id="ringTime">00:30</div>
+          <div class="ring-label" id="ringLabel">ready</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="wrap">
+
+  <div id="joinScreen">
+    <h1>JOIN THE QUIZ</h1>
+    <p>Enter the game code your host shared, and your name.</p>
+    <input type="text" id="joinCode" placeholder="GAME CODE" maxlength="4" inputmode="numeric" />
+    <input type="text" id="joinName" placeholder="Your name" maxlength="24" />
+    <button class="btn btn-start" id="joinBtn" style="width:220px;">Join</button>
+    <div id="joinError"></div>
+  </div>
+
+  <div id="gameScreen">
+    <div class="my-status">
+      <div class="name" id="myName">—</div>
+      <div class="score" id="myScore">0</div>
+    </div>
+
+    <div class="card" id="questionCard">
+      <div class="eyebrow" id="qEyebrow">Waiting for host</div>
+      <div id="lobbyMsg" class="lobby-msg">The host hasn't started a question yet. Sit tight!</div>
+      <div id="questionBody" style="display:none;">
+        <p id="questionText"></p>
+        <div class="options-stack" id="optionsStack"></div>
+        <button class="btn btn-start" id="submitAnswerBtn" disabled>Submit answer</button>
+        <div class="lock-msg" id="lockMsg" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div id="leaderboardWrap">
+      <h2>Leader<span>board</span></h2>
+      <div class="team-list" id="teamList"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io({ query: { role: 'player' } });
+const statusText = document.getElementById('statusText');
+socket.on('connect', () => { statusText.textContent = 'connected'; tryAutoRejoin(); });
+socket.on('disconnect', () => { statusText.textContent = 'disconnected — retrying…'; });
+
+/* ---------------- IDENTITY ---------------- */
+let me = { id: null, name: null, score: 0 };
+
+function tryAutoRejoin(){
+  const savedId = localStorage.getItem('fq_player_id');
+  const savedName = localStorage.getItem('fq_player_name');
+  const savedCode = localStorage.getItem('fq_player_code');
+  if(savedId && savedName && savedCode){
+    socket.emit('player:join', { name: savedName, code: savedCode, existingId: savedId });
+  }
+}
+
+const joinScreen = document.getElementById('joinScreen');
+const gameScreen = document.getElementById('gameScreen');
+const joinError = document.getElementById('joinError');
+
+document.getElementById('joinBtn').addEventListener('click', doJoin);
+document.getElementById('joinName').addEventListener('keydown', (e) => { if(e.key === 'Enter') doJoin(); });
+document.getElementById('joinCode').addEventListener('keydown', (e) => { if(e.key === 'Enter') doJoin(); });
+
+function doJoin(){
+  const code = document.getElementById('joinCode').value.trim();
+  const name = document.getElementById('joinName').value.trim();
+  if(!code || !name){ joinError.textContent = 'Enter both a code and a name.'; return; }
+  socket.emit('player:join', { name, code, existingId: localStorage.getItem('fq_player_id') });
+}
+
+socket.on('player:error', (msg) => { joinError.textContent = msg; });
+
+socket.on('player:joined', (p) => {
+  me = p;
+  localStorage.setItem('fq_player_id', p.id);
+  localStorage.setItem('fq_player_name', p.name);
+  localStorage.setItem('fq_player_code', document.getElementById('joinCode').value.trim() || localStorage.getItem('fq_player_code') || '');
+  joinScreen.style.display = 'none';
+  gameScreen.style.display = 'flex';
+  document.getElementById('myName').textContent = p.name;
+  document.getElementById('myScore').textContent = p.score;
+});
+
+/* ---------------- QUESTION ---------------- */
+const lobbyMsg = document.getElementById('lobbyMsg');
+const questionBody = document.getElementById('questionBody');
+const questionText = document.getElementById('questionText');
+const optionsStack = document.getElementById('optionsStack');
+const submitBtn = document.getElementById('submitAnswerBtn');
+const lockMsg = document.getElementById('lockMsg');
+const qEyebrow = document.getElementById('qEyebrow');
+
+let currentQ = null;
+let hasAnsweredThisQuestion = false; // true only once Submit has actually been pressed
+let mySelectedIdx = null;            // the option currently highlighted (may not be submitted yet)
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+socket.on('state:question', (payload) => {
+  const isNewQuestion = !currentQ || currentQ.index !== payload.index;
+  currentQ = payload;
+
+  if(payload.index === -1 || payload.question === null){
+    hasAnsweredThisQuestion = false;
+    mySelectedIdx = null;
+    lobbyMsg.style.display = 'block';
+    questionBody.style.display = 'none';
+    qEyebrow.textContent = 'Waiting for host';
+    return;
+  }
+
+  lobbyMsg.style.display = 'none';
+  questionBody.style.display = 'block';
+  qEyebrow.textContent = `Question ${payload.index + 1} of ${payload.total}`;
+  questionText.textContent = payload.question;
+
+  if(isNewQuestion){
+    // Fresh question: reset local answer state and rebuild the option buttons.
+    hasAnsweredThisQuestion = false;
+    mySelectedIdx = null;
+    lockMsg.style.display = 'none';
+    submitBtn.disabled = true;
+
+    optionsStack.innerHTML = '';
+    payload.options.forEach((opt, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'opt-btn';
+      btn.innerHTML = `<span class="opt-badge">${String.fromCharCode(65 + idx)}</span><span>${escapeHtml(opt)}</span>`;
+      btn.addEventListener('click', () => selectOption(idx, btn));
+      optionsStack.appendChild(btn);
+    });
+  }
+  // Same question re-broadcast (e.g. a reveal toggle) leaves the existing
+  // buttons and the player's selection untouched.
+
+  if(payload.revealed && typeof payload.correctIndex === 'number'){
+    applyReveal(payload.correctIndex);
+  }
+});
+
+// Step 1: tap an option to highlight it. Doesn't submit anything yet,
+// and can be changed as many times as they like before submitting.
+function selectOption(idx, btn){
+  if(hasAnsweredThisQuestion) return;
+  mySelectedIdx = idx;
+  [...optionsStack.children].forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  submitBtn.disabled = false;
+}
+
+// Step 2: tap Submit to actually register the answer with the server.
+submitBtn.addEventListener('click', () => {
+  if(hasAnsweredThisQuestion || mySelectedIdx === null) return;
+  hasAnsweredThisQuestion = true;
+  [...optionsStack.children].forEach(b => b.disabled = true);
+  submitBtn.disabled = true;
+  lockMsg.style.display = 'block';
+  lockMsg.textContent = 'Submitting…';
+  socket.emit('player:answer', { id: me.id, optionIdx: mySelectedIdx });
+});
+
+socket.on('player:answerAck', (ack) => {
+  if(ack.alreadyAnswered){
+    lockMsg.textContent = "You've already answered this one.";
+    return;
+  }
+  if(!ack.correct){
+    lockMsg.textContent = 'Answer locked in — that was wrong, no points this time.';
+  } else if(ack.awarded){
+    lockMsg.textContent = '🎉 Correct — you were first! +1 point';
+  } else {
+    lockMsg.textContent = 'Correct — but someone else answered first, so no point this time.';
+  }
+});
+
+function applyReveal(correctIndex){
+  [...optionsStack.children].forEach((b, idx) => {
+    b.disabled = true;
+    if(idx === correctIndex) b.classList.add('correct');
+    else if(hasAnsweredThisQuestion && idx === mySelectedIdx) b.classList.add('wrong');
+  });
+  submitBtn.disabled = true;
+  if(!hasAnsweredThisQuestion){
+    lockMsg.style.display = 'block';
+    lockMsg.textContent = "Time's up — you didn't submit an answer.";
+  }
+  // If they did answer, the message from player:answerAck already explains
+  // whether they were right and whether they got the point — leave it as is.
+}
+
+/* ---------------- TIMER ---------------- */
+const ringFg = document.getElementById('ringFg');
+const ringTime = document.getElementById('ringTime');
+const ringLabel = document.getElementById('ringLabel');
+const timerZone = document.getElementById('timerZone');
+
+const RADIUS = 95;
+const CIRC = 2 * Math.PI * RADIUS;
+ringFg.style.strokeDasharray = CIRC;
+
+let duration = 30, remaining = 30, running = false, rafId = null;
+
+function fmt(t){
+  t = Math.max(0, Math.ceil(t));
+  const m = Math.floor(t/60).toString().padStart(2,'0');
+  const s = Math.floor(t%60).toString().padStart(2,'0');
+  return m + ':' + s;
+}
+function paintRing(){
+  const pct = duration > 0 ? remaining / duration : 0;
+  ringFg.style.strokeDashoffset = CIRC * (1 - pct);
+  ringTime.textContent = fmt(remaining);
+  let color = 'var(--teal)';
+  if(pct <= 0.2) color = 'var(--red)';
+  else if(pct <= 0.5) color = 'var(--gold)';
+  ringFg.style.stroke = color;
+  ringLabel.textContent = running ? 'live' : (remaining <= 0 ? "time's up" : 'ready');
+}
+function localTick(){
+  if(!running) return;
+  remaining = Math.max(0, remaining - 0.05);
+  paintRing();
+  if(remaining > 0) rafId = requestAnimationFrame(localTick);
+}
+socket.on('state:timer', (t) => {
+  duration = t.duration; remaining = t.remaining; running = t.running;
+  paintRing();
+  cancelAnimationFrame(rafId);
+  if(running) rafId = requestAnimationFrame(localTick);
+});
+socket.on('timer:end', () => {
+  timerZone.classList.add('flash');
+  setTimeout(() => timerZone.classList.remove('flash'), 900);
+  if(!hasAnsweredThisQuestion){
+    // time ran out and player never submitted an answer
+    [...optionsStack.children].forEach(b => b.disabled = true);
+    submitBtn.disabled = true;
+  }
+});
+paintRing();
+
+/* ---------------- LEADERBOARD ---------------- */
+const teamList = document.getElementById('teamList');
+socket.on('state:leaderboard', (list) => {
+  teamList.innerHTML = '';
+  const mine = list.find(p => p.id === me.id);
+  if(mine){ document.getElementById('myScore').textContent = mine.score; }
+
+  if(!list.length){
+    teamList.innerHTML = '<div class="empty-note">No participants yet.</div>';
+    return;
+  }
+  const topScore = list[0].score;
+  list.forEach((p, idx) => {
+    const card = document.createElement('div');
+    card.className = 'team-card' +
+      (p.score === topScore && p.score > 0 ? ' leader' : '') +
+      (p.id === me.id ? ' me' : '');
+    card.innerHTML = `
+      <div class="rank">${idx + 1}</div>
+      <div class="team-main">${escapeHtml(p.name)}${p.id === me.id ? ' (you)' : ''}</div>
+      <div class="team-score">${p.score}</div>
+    `;
+    teamList.appendChild(card);
+  });
+});
+</script>
+</body>
+</html>

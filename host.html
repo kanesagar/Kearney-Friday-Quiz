@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Friday Quiz — Host</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  .layout{ display:flex; gap:0; min-height:calc(100vh - 70px); }
+  .stage{ flex:1 1 62%; padding:26px 34px; display:flex; flex-direction:column; gap:20px; min-width:0; overflow-y:auto; }
+  .scoreboard{
+    flex:0 0 380px; background:var(--panel); border-left:1px solid var(--line);
+    padding:24px 20px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; position:relative;
+  }
+  .scoreboard h2{ font-family:'Bebas Neue', sans-serif; letter-spacing:2px; font-size:24px; margin:0; color:var(--cream); }
+  .scoreboard h2 span{ color:var(--gold); }
+  .code-box{
+    display:flex; align-items:center; gap:14px; background:var(--panel-2); border:1px solid var(--gold);
+    border-radius:12px; padding:14px 18px;
+  }
+  .code-box .code{ font-family:'Bebas Neue', sans-serif; font-size:38px; letter-spacing:8px; color:var(--gold); }
+  .code-box .label{ font-size:12px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+  .upload-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .file-btn{
+    display:inline-flex; align-items:center; gap:8px; background:var(--panel-2); border:1px solid var(--line);
+    color:var(--cream); padding:10px 16px; border-radius:9px; font-weight:600; font-size:14px;
+  }
+  .file-btn:hover{ border-color:var(--gold); color:var(--gold); }
+  #fileInput{ display:none; }
+  .upload-status{ font-size:13px; color:var(--muted); }
+  .format-hint{ margin-top:12px; font-size:12.5px; color:var(--muted); line-height:1.6; background:var(--panel-2); border:1px solid var(--line); border-radius:9px; padding:12px 14px; }
+  .format-hint code{ color:var(--teal); }
+  .q-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
+  .q-status{ font-family:'Bebas Neue', sans-serif; letter-spacing:1px; font-size:18px; color:var(--muted); }
+  .nav-btns{ display:flex; gap:8px; }
+  #questionText{ font-size:22px; font-weight:700; line-height:1.5; margin:0 0 18px; }
+  .options-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .option{ display:flex; align-items:center; gap:10px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:15px; font-weight:600; }
+  .option.correct{ border-color:var(--teal); background:rgba(47,163,152,0.15); }
+  .option.correct .opt-badge{ background:var(--teal); border-color:var(--teal); color:#06231f; }
+  .timer-controls{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .duration-set{ display:flex; gap:8px; background:var(--panel-2); padding:6px; border-radius:10px; border:1px solid var(--line); }
+  .duration-set button{ background:transparent; border:none; color:var(--muted); font-weight:600; font-size:13px; padding:7px 12px; border-radius:7px; }
+  .duration-set button.active, .duration-set button:hover{ background:var(--gold); color:#241b04; }
+  .score-btns{ display:flex; gap:5px; flex-shrink:0; }
+  .score-btns button{
+    width:26px; height:26px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--cream);
+    font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center;
+  }
+  .score-btns button:hover{ background:var(--teal); border-color:var(--teal); color:#06231f; }
+  .score-btns button.minus:hover{ background:var(--red); border-color:var(--red); color:#2a0808; }
+  .remove-team{ background:none; border:none; color:var(--muted); font-size:15px; flex-shrink:0; }
+  .remove-team:hover{ color:var(--red); }
+  .team-name-input{ width:100%; background:transparent; border:none; color:var(--cream); font-weight:700; font-size:14px; padding:1px 0; outline:none; border-bottom:1px solid transparent; }
+  .team-name-input:focus{ border-bottom:1px solid var(--muted); }
+  .reset-scores{ margin-top:auto; padding-top:12px; border-top:1px solid var(--line); }
+  .status-dot{ width:8px; height:8px; border-radius:50%; background:var(--muted); display:inline-block; margin-right:6px; }
+  .status-dot.on{ background:var(--teal); }
+
+  #authOverlay{
+    position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:50; flex-direction:column; gap:16px;
+  }
+  #authOverlay h1{ font-family:'Bebas Neue', sans-serif; color:var(--gold); letter-spacing:2px; font-size:34px; margin:0; }
+  #authOverlay .authbox{ display:flex; gap:10px; }
+  #authError{ color:var(--red); font-size:13px; min-height:16px; }
+
+  @media (max-width: 860px){
+    .layout{ flex-direction:column; }
+    .scoreboard{ flex:none; border-left:none; border-top:1px solid var(--line); }
+    .options-grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="authOverlay">
+  <h1>FRIDAY QUIZ — HOST</h1>
+  <div class="authbox">
+    <input type="password" id="hostPassword" placeholder="Host password" autofocus />
+    <button class="btn btn-start" id="authBtn">Enter</button>
+  </div>
+  <div id="authError"></div>
+</div>
+
+<div class="topbar">
+  <h1>FRIDAY QUIZ <span style="color:var(--muted); font-size:16px; font-weight:400;">· host</span></h1>
+  <div class="tag"><span class="status-dot" id="statusDot"></span><span id="statusText">connecting…</span></div>
+</div>
+
+<div class="layout">
+  <div class="stage">
+
+    <div class="code-box">
+      <div>
+        <div class="label">Game code — share this with players</div>
+        <div class="code" id="gameCode">····</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="regenCodeBtn" style="margin-left:auto;">New code</button>
+    </div>
+
+    <div class="card">
+      <div class="eyebrow">Question Bank</div>
+      <div class="upload-row">
+        <label class="file-btn" for="fileInput">⭱ Upload questions</label>
+        <input type="file" id="fileInput" accept=".csv,.json,text/csv,application/json" />
+        <button class="btn btn-ghost btn-sm" id="loadSampleBtn">Load sample questions</button>
+        <span class="upload-status" id="uploadStatus">No questions loaded yet</span>
+      </div>
+      <div class="format-hint">
+        <strong>CSV:</strong> <code>question, option1, option2, option3, option4, correct</code> — correct can be a letter (A–D), number (1–4), or the exact option text. First row may be a header.<br>
+        <strong>JSON:</strong> <code>[{ "question": "...", "options": ["...","...","...","..."], "correct": "B" }]</code>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q-nav">
+        <span class="q-status" id="qStatus">No questions loaded</span>
+        <div class="nav-btns">
+          <button class="btn btn-ghost btn-sm" id="prevBtn">‹ Prev</button>
+          <button class="btn btn-ghost btn-sm" id="revealBtn">Reveal answer</button>
+          <button class="btn btn-ghost btn-sm" id="nextBtn">Next ›</button>
+        </div>
+      </div>
+      <p id="questionText">Upload a question file to begin.</p>
+      <div class="options-grid" id="optionsGrid"></div>
+    </div>
+
+  </div>
+
+  <div class="scoreboard">
+    <div class="toast" id="toast"></div>
+
+    <div class="timer-zone" id="timerZone">
+      <div class="ring-wrap">
+        <svg viewBox="0 0 220 220">
+          <circle class="ring-bg" cx="110" cy="110" r="95"></circle>
+          <circle class="ring-fg" id="ringFg" cx="110" cy="110" r="95"></circle>
+        </svg>
+        <div class="ring-center">
+          <div class="ring-time" id="ringTime">00:30</div>
+          <div class="ring-label" id="ringLabel">ready</div>
+        </div>
+      </div>
+      <div class="timer-controls">
+        <button class="btn btn-start" id="startBtn">▶ Start</button>
+        <button class="btn btn-pause" id="pauseBtn">⏸ Pause</button>
+        <button class="btn btn-reset" id="resetBtn">↺ Reset</button>
+      </div>
+      <div class="duration-set" id="durationSet">
+        <button data-secs="15">15s</button>
+        <button data-secs="30" class="active">30s</button>
+        <button data-secs="45">45s</button>
+        <button data-secs="60">60s</button>
+      </div>
+    </div>
+
+    <h2>Leader<span>board</span></h2>
+    <div class="team-list" id="teamList"></div>
+    <div class="reset-scores">
+      <button class="btn btn-ghost" id="resetScoresBtn" style="width:100%;">Reset all scores</button>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+/* ---------------- CONNECTION ---------------- */
+const socket = io({ query: { role: 'host' } });
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+
+socket.on('connect', () => {
+  statusDot.classList.add('on');
+  statusText.textContent = 'connected';
+  const savedPw = sessionStorage.getItem('fq_host_pw');
+  if (savedPw) socket.emit('host:auth', savedPw);
+});
+socket.on('disconnect', () => {
+  statusDot.classList.remove('on');
+  statusText.textContent = 'disconnected — retrying…';
+});
+
+/* ---------------- AUTH ---------------- */
+const authOverlay = document.getElementById('authOverlay');
+const authError = document.getElementById('authError');
+document.getElementById('authBtn').addEventListener('click', submitAuth);
+document.getElementById('hostPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+
+function submitAuth(){
+  const pw = document.getElementById('hostPassword').value;
+  sessionStorage.setItem('fq_host_pw', pw);
+  socket.emit('host:auth', pw);
+}
+
+socket.on('host:authOk', (payload) => {
+  authOverlay.style.display = 'none';
+  gameCodeEl.textContent = payload.gameCode;
+  state.questions = payload.questions.map(q => ({ ...q, answeredBy: {} }));
+  state.currentIndex = payload.currentIndex;
+  state.revealed = payload.revealed;
+  duration = payload.timer.duration;
+  remaining = payload.timer.remaining;
+  running = payload.timer.running;
+  syncDurationButtons();
+  renderQuestion();
+  paintRing();
+  renderLeaderboard(payload.leaderboard);
+});
+socket.on('host:authFail', () => {
+  authError.textContent = 'Incorrect password. Try again.';
+  sessionStorage.removeItem('fq_host_pw');
+});
+socket.on('host:codeUpdated', (code) => { gameCodeEl.textContent = code; });
+
+const toastEl = document.getElementById('toast');
+function showToast(msg, type){
+  toastEl.textContent = msg;
+  toastEl.className = 'toast show ' + type;
+  setTimeout(() => toastEl.classList.remove('show'), 2000);
+}
+socket.on('host:info', (msg) => showToast(msg, 'correct'));
+
+const gameCodeEl = document.getElementById('gameCode');
+document.getElementById('regenCodeBtn').addEventListener('click', () => socket.emit('host:regenerateCode'));
+
+/* ---------------- LOCAL STATE MIRROR ---------------- */
+const state = { questions: [], currentIndex: -1, revealed: false };
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ---------------- QUESTION UPLOAD (parsed client-side, sent to server) ---------------- */
+function resolveCorrectIndex(raw, options){
+  if(raw === undefined || raw === null) return -1;
+  const s = String(raw).trim();
+  if(/^[1-9]$/.test(s)) return parseInt(s, 10) - 1;
+  if(/^[A-Za-z]$/.test(s)) return s.toUpperCase().charCodeAt(0) - 65;
+  return options.findIndex(o => String(o).trim().toLowerCase() === s.toLowerCase());
+}
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i = 0; i < text.length; i++){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){ if(text[i+1] === '"'){ field += '"'; i++; } else { inQuotes = false; } }
+      else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field = ''; }
+      else if(c === '\n' || c === '\r'){
+        if(c === '\r' && text[i+1] === '\n') i++;
+        row.push(field); field = '';
+        rows.push(row); row = [];
+      } else field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows.filter(r => r.length && r.some(c => c.trim() !== ''));
+}
+function parseFileContent(name, text){
+  let qs = [];
+  if(name.toLowerCase().endsWith('.json') || text.trim().startsWith('[')){
+    const data = JSON.parse(text);
+    qs = data.map(item => {
+      const options = item.options || item.choices || [];
+      const correctIndex = resolveCorrectIndex(item.correct ?? item.answer, options);
+      return { question: item.question || item.q || '', options, correctIndex };
+    });
+  } else {
+    const rows = parseCSV(text);
+    let start = 0;
+    if(rows.length && rows[0][0] && rows[0][0].trim().toLowerCase() === 'question') start = 1;
+    for(let i = start; i < rows.length; i++){
+      const r = rows[i];
+      const question = (r[0] || '').trim();
+      const options = [r[1], r[2], r[3], r[4]].filter(x => x !== undefined).map(x => x.trim()).filter(x => x !== '');
+      const correctIndex = resolveCorrectIndex(r[5], options);
+      qs.push({ question, options, correctIndex });
+    }
+  }
+  return qs.filter(q => q.question && q.options.length >= 2);
+}
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const qs = parseFileContent(file.name, reader.result);
+      if(!qs.length){ alert('No valid questions found. Please check the file format.'); return; }
+      socket.emit('host:uploadQuestions', qs);
+    }catch(err){
+      alert('Could not read that file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('loadSampleBtn').addEventListener('click', () => {
+  const sample = [
+    { question: 'What is the capital of Japan?', options: ['Seoul','Tokyo','Beijing','Bangkok'], correctIndex: 1 },
+    { question: 'How many continents are there on Earth?', options: ['5','6','7','8'], correctIndex: 2 },
+    { question: 'Which planet is known as the Red Planet?', options: ['Venus','Mars','Jupiter','Saturn'], correctIndex: 1 },
+    { question: 'What is the largest ocean on Earth?', options: ['Atlantic','Indian','Arctic','Pacific'], correctIndex: 3 }
+  ];
+  socket.emit('host:uploadQuestions', sample);
+});
+
+/* ---------------- QUESTION DISPLAY & NAV ---------------- */
+const qStatus = document.getElementById('qStatus');
+const questionText = document.getElementById('questionText');
+const optionsGrid = document.getElementById('optionsGrid');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const revealBtn = document.getElementById('revealBtn');
+const uploadStatus = document.getElementById('uploadStatus');
+
+function renderQuestion(){
+  const n = state.questions.length;
+  uploadStatus.textContent = n ? `${n} question${n === 1 ? '' : 's'} loaded` : 'No questions loaded yet';
+  qStatus.textContent = n ? `Question ${state.currentIndex + 1} of ${n}` : 'No questions loaded';
+  prevBtn.disabled = state.currentIndex <= 0;
+  nextBtn.disabled = n === 0 || state.currentIndex >= n - 1;
+  revealBtn.disabled = n === 0;
+  revealBtn.textContent = state.revealed ? 'Hide answer' : 'Reveal answer';
+
+  const q = state.questions[state.currentIndex];
+  questionText.textContent = q ? q.question : 'Upload a question file to begin.';
+  optionsGrid.innerHTML = '';
+  if(q){
+    q.options.forEach((opt, idx) => {
+      const div = document.createElement('div');
+      div.className = 'option' + (idx === q.correctIndex ? ' correct' : '');
+      div.innerHTML = `<span class="opt-badge">${String.fromCharCode(65 + idx)}</span><span>${escapeHtml(opt)}</span>`;
+      optionsGrid.appendChild(div);
+    });
+  }
+}
+
+prevBtn.addEventListener('click', () => socket.emit('host:prev'));
+nextBtn.addEventListener('click', () => socket.emit('host:next'));
+revealBtn.addEventListener('click', () => socket.emit('host:reveal'));
+
+socket.on('state:question', (payload) => {
+  if(payload.total !== state.questions.length){
+    state.questions = new Array(payload.total);
+  }
+  state.currentIndex = payload.index;
+  state.revealed = payload.revealed;
+  if(payload.question !== null){
+    state.questions[payload.index] = state.questions[payload.index] || {};
+    state.questions[payload.index].question = payload.question;
+    state.questions[payload.index].options = payload.options;
+    state.questions[payload.index].correctIndex = payload.correctIndex;
+  }
+  renderQuestion();
+});
+
+/* ---------------- TIMER ---------------- */
+const ringFg = document.getElementById('ringFg');
+const ringTime = document.getElementById('ringTime');
+const ringLabel = document.getElementById('ringLabel');
+const timerZone = document.getElementById('timerZone');
+const durationSet = document.getElementById('durationSet');
+
+const RADIUS = 95;
+const CIRC = 2 * Math.PI * RADIUS;
+ringFg.style.strokeDasharray = CIRC;
+
+let duration = 30, remaining = 30, running = false, rafId = null;
+
+function fmt(t){
+  t = Math.max(0, Math.ceil(t));
+  const m = Math.floor(t/60).toString().padStart(2,'0');
+  const s = Math.floor(t%60).toString().padStart(2,'0');
+  return m + ':' + s;
+}
+function paintRing(){
+  const pct = duration > 0 ? remaining / duration : 0;
+  ringFg.style.strokeDashoffset = CIRC * (1 - pct);
+  ringTime.textContent = fmt(remaining);
+  let color = 'var(--teal)';
+  if(pct <= 0.2) color = 'var(--red)';
+  else if(pct <= 0.5) color = 'var(--gold)';
+  ringFg.style.stroke = color;
+  ringLabel.textContent = running ? 'live' : (remaining <= 0 ? "time's up" : 'ready');
+}
+function localTick(){
+  if(!running) return;
+  remaining = Math.max(0, remaining - 0.05);
+  paintRing();
+  if(remaining > 0) rafId = requestAnimationFrame(localTick);
+}
+
+socket.on('state:timer', (t) => {
+  duration = t.duration;
+  remaining = t.remaining;
+  running = t.running;
+  paintRing();
+  cancelAnimationFrame(rafId);
+  if(running) rafId = requestAnimationFrame(localTick);
+});
+socket.on('timer:end', () => {
+  timerZone.classList.add('flash');
+  setTimeout(() => timerZone.classList.remove('flash'), 900);
+});
+
+document.getElementById('startBtn').addEventListener('click', () => socket.emit('host:timerStart'));
+document.getElementById('pauseBtn').addEventListener('click', () => socket.emit('host:timerPause'));
+document.getElementById('resetBtn').addEventListener('click', () => socket.emit('host:timerReset'));
+
+function syncDurationButtons(){
+  [...durationSet.children].forEach(b => b.classList.toggle('active', parseInt(b.dataset.secs,10) === duration));
+}
+durationSet.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-secs]');
+  if(!btn) return;
+  socket.emit('host:setDuration', parseInt(btn.dataset.secs, 10));
+});
+
+paintRing();
+
+/* ---------------- LEADERBOARD ---------------- */
+const teamList = document.getElementById('teamList');
+
+function renderLeaderboard(list){
+  teamList.innerHTML = '';
+  if(!list.length){
+    teamList.innerHTML = '<div class="empty-note">No participants yet — share the game code to get players in.</div>';
+    return;
+  }
+  const topScore = list[0].score;
+  list.forEach((p, idx) => {
+    const card = document.createElement('div');
+    card.className = 'team-card' + (p.score === topScore && p.score > 0 ? ' leader' : '');
+    card.innerHTML = `
+      <div class="rank">${idx + 1}</div>
+      <div class="team-main">
+        <input class="team-name-input" value="${escapeHtml(p.name)}" maxlength="24" />
+        <div class="team-score">${p.score}</div>
+      </div>
+      <div class="score-btns">
+        <button class="minus" title="-1">−</button>
+        <button class="plus" title="+1">+</button>
+      </div>
+      <button class="remove-team" title="Remove">✕</button>
+    `;
+    card.querySelector('.team-name-input').addEventListener('change', (e) => {
+      socket.emit('host:renameParticipant', { id: p.id, name: e.target.value });
+    });
+    card.querySelector('.plus').addEventListener('click', () => socket.emit('host:adjustScore', { id: p.id, delta: 1 }));
+    card.querySelector('.minus').addEventListener('click', () => socket.emit('host:adjustScore', { id: p.id, delta: -1 }));
+    card.querySelector('.remove-team').addEventListener('click', () => socket.emit('host:removeParticipant', { id: p.id }));
+    teamList.appendChild(card);
+  });
+}
+
+socket.on('state:leaderboard', renderLeaderboard);
+
+document.getElementById('resetScoresBtn').addEventListener('click', () => {
+  if(confirm('Reset every participant\'s score to 0?')) socket.emit('host:resetScores');
+});
+</script>
+</body>
+</html>
